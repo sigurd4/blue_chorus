@@ -1,12 +1,15 @@
 #![feature(adt_const_params)]
 #![feature(split_array)]
+#![feature(const_for)]
+#![feature(variant_count)]
+#![feature(array_chunks)]
 
-use std::f32::consts::{TAU, PI};
+use std::f64::consts::{TAU, PI};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
-use real_time_fir_iir_filters::iir::rc::FirstOrderRCFilter;
-use real_time_fir_iir_filters::iir::{FirstOrderFilter, IIRFilter};
+use num::Float;
+use real_time_fir_iir_filters::{iir::first::{FirstOrderFilter, FirstOrderRCFilter}, Filter};
 use vst::{prelude::*, plugin_main};
 
 use self::filter::FilterChorus;
@@ -21,36 +24,81 @@ pub mod filter;
 pub mod lfo;
 pub mod waveform;
 
-const DELAY: f32 = 0.1;
-const CHANGE: f32 = 0.2;
-const DIST: f32 = 0.000001;
+const DELAY: f64 = 0.1;
+const CHANGE: f64 = 0.2;
+const DIST: f64 = 0.000001;
+
+const F_DELAY: f64 = 1.0;
 
 struct BlueChorusPlugin
 {
     pub param: Arc<BlueChorusParameters>,
     lfo: LFO,
-    depth: f32,
-    length: f32,
+    depth: f64,
+    length: f64,
     delay_line: [TappedDelayLine; CHANNEL_COUNT],
-    filter_input: [FirstOrderRCFilter; CHANNEL_COUNT],
+    filter_delay: [FirstOrderFilter<f64>; 2],
+    filter_input: [FirstOrderRCFilter<f64>; CHANNEL_COUNT],
     filter_chorus: [[FilterChorus; 2]; CHANNEL_COUNT],
-    filter_lfo: FirstOrderRCFilter,
-    filter_feedback: [FirstOrderRCFilter; CHANNEL_COUNT],
-    rate: f32
+    filter_lfo: FirstOrderRCFilter<f64>,
+    filter_feedback: [FirstOrderRCFilter<f64>; CHANNEL_COUNT],
+    rate: f64
 }
 
 const CHANNEL_COUNT: usize = 2;
 
 impl BlueChorusPlugin
 {
-    fn triangle(phase: f32) -> f32
-    {
-        (1.0 - phase/PI).abs() - 1.0
-    }
-
     fn stages(&self) -> usize
     {
         (self.rate*DELAY) as usize
+    }
+
+    fn process<F: Float>(&mut self, buffer: &mut AudioBuffer<F>)
+    {
+        self.lfo.omega = self.param.frequency.get() as f64*TAU;
+        self.lfo.waveform = Waveform::Triangle;//Waveform::VARIANTS[self.param.waveform.load(Ordering::Relaxed) as usize];
+        let sine = self.param.sine.get() as f64;
+        self.depth = CHANGE*self.param.depth.get() as f64 + (1.0 - CHANGE)*self.depth;
+        self.length = CHANGE*self.param.length.get() as f64 + (1.0 - CHANGE)*self.length;
+        let feedback = self.param.feedback.get() as f64;
+        let duty_cycle = self.param.duty_cycle.get() as f64;
+        let mix = self.param.mix.get() as f64;
+
+        let stages = self.stages();
+
+        let theta0 = self.lfo.theta;
+        self.lfo.duty_cycle = duty_cycle;
+        let w_lfo = self.filter_lfo.w;
+
+        for ((((((input_channel, output_channel), delay_line), filter_input), [filter_chorus1, filter_chorus2]), filter_feedback), filter_delay) in buffer.zip()
+            .zip(self.delay_line.iter_mut())
+            .zip(self.filter_input.iter_mut())
+            .zip(self.filter_chorus.iter_mut())
+            .zip(self.filter_feedback.iter_mut())
+            .zip(self.filter_delay.iter_mut())
+        {
+            self.filter_lfo.w = w_lfo;
+            self.lfo.theta = theta0;
+            for (input_sample, output_sample) in input_channel.into_iter()
+                .zip(output_channel.into_iter())
+            {
+                let lfo = self.lfo.next(self.rate);
+                let lfo = Waveform::triangle_to_sin(lfo)*sine + lfo*(1.0 - sine);
+                let lfo = 0.5*self.filter_lfo.filter(self.rate, lfo*self.depth)[0] + 0.5;
+                delay_line.tap = lfo*filter_delay.filter(self.rate, self.length*(stages - 1) as f64)[0];
+
+                let x = filter_input.filter(self.rate, input_sample.to_f64().unwrap())[1];
+                
+                let x_ = filter_chorus1.filter(self.rate, x);
+
+                let y = filter_chorus2.filter(self.rate, delay_line.siso(x_));
+                let x_ = x + filter_feedback.filter(self.rate, y*feedback)[1];
+                delay_line.w[0] = (x_*DIST)/(1.0 + (x_*DIST).abs())/DIST;
+
+                *output_sample = F::from(y*mix + x*(1.0 - mix)).unwrap();
+            }
+        }
     }
 }
 
@@ -61,22 +109,16 @@ impl Plugin for BlueChorusPlugin
         Self: Sized
     {
         BlueChorusPlugin {
-            param: Arc::new(BlueChorusParameters {
-                waveform: AtomicU8::from(Waveform::Triangle as u8),
-                frequency: AtomicFloat::from(1.0),
-                length: AtomicFloat::from(0.005/DELAY),
-                depth: AtomicFloat::from(1.0),
-                feedback: AtomicFloat::from(0.0),
-                mix: AtomicFloat::from(0.50)
-            }),
+            param: Arc::new(Default::default()),
             depth: 1.0,
             length: 0.01/DELAY,
-            lfo: LFO::new(TAU*1.0, Waveform::Triangle),
+            lfo: LFO::new(TAU*1.0, 0.5, Waveform::Triangle),
+            filter_delay: [FirstOrderFilter::new(F_DELAY); CHANNEL_COUNT],
             filter_input: [FirstOrderRCFilter::new(471000.0, 0.000000047); CHANNEL_COUNT],
             filter_chorus: [[FilterChorus::new(); 2]; CHANNEL_COUNT],
             filter_lfo: FirstOrderRCFilter::new(220000.0, 0.000000010),
             filter_feedback: [FirstOrderRCFilter::new(39000.0 + 50000.0*0.5, 0.000000047); CHANNEL_COUNT],
-            delay_line: array_init::array_init(|_| TappedDelayLine::new()),
+            delay_line: [(); CHANNEL_COUNT].map(|()| TappedDelayLine::new()),
             rate: 44100.0
         }
     }
@@ -87,7 +129,7 @@ impl Plugin for BlueChorusPlugin
             name: "Blue Chorus".to_string(),
             vendor: "Soma FX".to_string(),
             presets: 0,
-            parameters: Parameter::PARAMETERS.len() as i32,
+            parameters: Parameter::VARIANTS.len() as i32,
             inputs: CHANNEL_COUNT as i32,
             outputs: CHANNEL_COUNT as i32,
             midi_inputs: 0,
@@ -105,54 +147,22 @@ impl Plugin for BlueChorusPlugin
 
     fn set_sample_rate(&mut self, rate: f32)
     {
-        self.rate = rate;
-    }
-
-    fn process(&mut self, buffer: &mut AudioBuffer<f32>)
-    {
-        self.lfo.omega = TAU*self.param.frequency.get();
-        self.lfo.waveform = Waveform::from(self.param.waveform.load(Ordering::Relaxed));
-        self.depth = CHANGE*self.param.depth.get() + (1.0 - CHANGE)*self.depth;
-        self.length = CHANGE*self.param.length.get() + (1.0 - CHANGE)*self.length;
-        let feedback = self.param.feedback.get();
-        let mix = self.param.mix.get();
-
-        let stages = self.stages();
-
-        let theta0 = self.lfo.theta;
-        let w_lfo = self.filter_lfo.w;
-
-        for (((((input_channel, output_channel), delay_line), filter_input), filter_chorus), filter_feedback) in buffer.zip()
-            .zip(self.delay_line.iter_mut())
-            .zip(self.filter_input.iter_mut())
-            .zip(self.filter_chorus.iter_mut())
-            .zip(self.filter_feedback.iter_mut())
-        {
-            delay_line.stages = stages;
-            self.filter_lfo.w = w_lfo;
-            self.lfo.theta = theta0;
-            for (input_sample, output_sample) in input_channel.into_iter()
-                .zip(output_channel.into_iter())
-            {
-                let lfo = 0.5*self.filter_lfo.filter(self.rate, self.lfo.next(self.rate)*self.depth)[0] + 0.5;
-                delay_line.tap = lfo*self.length*(stages - 1) as f32;
-
-                let x = filter_input.filter(self.rate, *input_sample)[1];
-                
-                let x_ = filter_chorus[0].filter(self.rate, x);
-
-                let y = filter_chorus[1].filter(self.rate, delay_line.siso(x_));
-                let x_ = x + filter_feedback.filter(self.rate, y*feedback)[1];
-                delay_line.w[0] = (x_*DIST)/(1.0 + (x_*DIST).abs())/DIST;
-
-                *output_sample = y*mix + x*(1.0 - mix);
-            }
-        }
+        self.rate = rate as f64;
     }
 
     fn get_parameter_object(&mut self) -> Arc<dyn PluginParameters>
     {
         self.param.clone()
+    }
+
+    fn process(&mut self, buffer: &mut AudioBuffer<f32>)
+    {
+        self.process(buffer)
+    }
+
+    fn process_f64(&mut self, buffer: &mut AudioBuffer<f64>)
+    {
+        self.process(buffer)
     }
 }
 

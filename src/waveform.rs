@@ -1,95 +1,92 @@
-use std::f32::consts::{PI, FRAC_2_PI, TAU};
+use std::{fmt::Display, f64::consts::{FRAC_PI_2, TAU}};
 
-use rand::distributions::Standard;
-use rand::prelude::Distribution;
-use rand::thread_rng;
-
-pub const MAX_SERIES: usize = 2048;
-
-#[derive(Clone, Copy, PartialEq)]
-#[repr(u8)]
+#[derive(Clone, Copy)]
 pub enum Waveform
 {
-    Sine,
-    Triangle,
-    Sawtooth,
-    InverseSawtooth,
-    Square,
-    Noise
+    Triangle = 0,
+    Triangle2 = 1,
+    Sawtooth = 2,
+    Sawtooth2 = 3,
+    Square = 4,
+    Square2 = 5
 }
 
 impl Waveform
 {
-    pub const WAVEFORMS: [Self; 6] = [Self::Sine, Self::Triangle, Self::Sawtooth, Self::InverseSawtooth, Self::Square, Self::Noise];
+    pub const VARIANT_COUNT: usize = core::mem::variant_count::<Self>();
+    pub const VARIANTS: [Self; Self::VARIANT_COUNT] = [
+        Self::Triangle,
+        Self::Triangle2,
+        Self::Sawtooth,
+        Self::Sawtooth2,
+        Self::Square,
+        Self::Square2
+    ];
+}
 
-    pub fn from(i: u8) -> Self
+impl Waveform
+{
+    pub fn triangle(phase: f64, duty_cycle: f64) -> f64
     {
-        Self::WAVEFORMS[i as usize]
+        if phase < duty_cycle {2.0*phase/duty_cycle - 1.0} else {1.0 - 2.0*(phase - duty_cycle)/(TAU - duty_cycle)}
     }
 
-    pub fn wavetable(&self) -> [(f32, f32); MAX_SERIES]
+    pub fn sawtooth2(phase: f64, duty_cycle: f64) -> f64
+    {
+        if phase < duty_cycle {2.0*phase/duty_cycle - 1.0} else {2.0*(phase - duty_cycle)/(TAU - duty_cycle) - 1.0}
+    }
+
+    pub fn sawtooth(phase: f64, duty_cycle: f64) -> f64
+    {
+        (Self::square(phase, duty_cycle) + Self::sawtooth2(phase, duty_cycle))*0.5
+    }
+
+    pub fn triangle2(phase: f64, duty_cycle: f64) -> f64
+    {
+        1.0 - Self::sawtooth2(phase, duty_cycle).abs()*2.0
+    }
+
+    pub fn square(phase: f64, duty_cycle: f64) -> f64
+    {
+        if phase < duty_cycle {-1.0} else {1.0}
+    }
+
+    fn square2(phase: f64, duty_cycle: f64) -> f64
+    {
+        if Self::sawtooth2(phase, duty_cycle) < 0.0 {-1.0} else {1.0}
+    }
+    
+    pub fn triangle_to_sin(x: f64) -> f64
+    {
+        (FRAC_PI_2*x).sin()
+    }
+
+    pub fn waveform(&self, phase: f64, duty_cycle: f64) -> f64
     {
         match self
         {
-            Waveform::Sine => {
-                let mut w = [(0.0, 0.0); MAX_SERIES];
-                w[0] = (1.0, 1.0);
-                return w
-            },
-            Waveform::Triangle => array_init::array_init(|m| {
-                let n = (m*2 + 1) as f32;
-                (8.0/PI/PI*(-1.0f32).powi(m as i32)/n/n, n)
-            }),
-            Waveform::Sawtooth => array_init::array_init(|n| {
-                let n = n + 1;
-                (-2.0/PI/(n as f32), n as f32)
-            }),
-            Waveform::InverseSawtooth => array_init::array_init(|n| {
-                let n = n + 1;
-                (2.0/PI/(n as f32), n as f32)
-            }),
-            Waveform::Square => array_init::array_init(|m| {
-                let n = (m*2 + 1) as f32;
-                (4.0/PI/n, n)
-            }),
-            Waveform::Noise => [(0.0, 0.0); MAX_SERIES]
+            Waveform::Triangle => Self::triangle(phase, duty_cycle),
+            Waveform::Triangle2 => Self::triangle2(phase, duty_cycle),
+            Waveform::Sawtooth => Self::sawtooth(phase, duty_cycle),
+            Waveform::Sawtooth2 => Self::sawtooth2(phase, duty_cycle),
+            Waveform::Square => Self::square(phase, duty_cycle),
+            Waveform::Square2 => Self::square2(phase, duty_cycle),
         }
     }
+}
 
-    pub fn waveform_direct(&self, theta: f32) -> f32
+impl Display for Waveform
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
     {
         match self
         {
-            Waveform::Sine => {
-                theta.sin()
-            },
-            Waveform::Triangle => {
-                FRAC_2_PI*theta.sin().asin()
-            },
-            Waveform::Sawtooth => {
-                return theta/TAU - 0.5
-            },
-            Waveform::InverseSawtooth => {
-                return 0.5 - theta/TAU
-            },
-            Waveform::Square => {
-                return if theta < PI {1.0} else {-1.0}
-            },
-            Waveform::Noise => {
-                let y: f32 = Standard.sample(&mut thread_rng());
-                return y.max(-1.0).min(1.0)
-            },
+            Waveform::Triangle => write!(f, "Triangle"),
+            Waveform::Triangle2 => write!(f, "Triangle2"),
+            Waveform::Sawtooth => write!(f, "Sawtooth"),
+            Waveform::Sawtooth2 => write!(f, "Sawtooth2"),
+            Waveform::Square => write!(f, "Square"),
+            Waveform::Square2 => write!(f, "Square2"),
         }
-    }
-
-    pub fn waveform_wavetable(wavetable: &[(f32, f32); MAX_SERIES], theta: f32, max_series: usize) -> f32
-    {
-        let mut y = 0.0;
-        for m in 0..MAX_SERIES.min(max_series)
-        {
-            let (a, n) = wavetable[m];
-            y += a*(n*theta).sin()
-        }
-        return y
     }
 }

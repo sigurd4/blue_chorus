@@ -1,21 +1,19 @@
-use real_time_fir_iir_filters::iir::IIRFilter;
-use real_time_fir_iir_filters::iir::rc::FirstOrderRCFilter;
-use real_time_fir_iir_filters::iir::sallen_key::SecondOrderSallenKeyFilter;
+use real_time_fir_iir_filters::{iir::{first::FirstOrderRCFilter, second::SecondOrderSallenKeyFilter}, Filter};
 
-const R9: f32 = 330000.0;
-const R10: f32 = 10000.0;
+const R9: f64 = 330000.0;
+const R10: f64 = 10000.0;
 
-const C5: f32 = 0.000000033;
-const C6: f32 = 0.0000000033;
-const C7: f32 = 0.0000000082;
-const C8: f32 = 0.000000000470;
+const C5: f64 = 0.000000033;
+const C6: f64 = 0.0000000033;
+const C7: f64 = 0.0000000082;
+const C8: f64 = 0.000000000470;
 
 #[derive(Clone, Copy)]
 pub struct FilterChorus
 {
-    h0: FirstOrderRCFilter,
-    h1: FirstOrderRCFilter,
-    h2: SecondOrderSallenKeyFilter,
+    h0: FirstOrderRCFilter<f64>,
+    h1: FirstOrderRCFilter<f64>,
+    h2: SecondOrderSallenKeyFilter<f64>,
 }
 
 impl FilterChorus
@@ -29,7 +27,7 @@ impl FilterChorus
         }
     }
 
-    pub fn filter(&mut self, rate: f32, x: f32) -> f32
+    pub fn filter(&mut self, rate: f64, x: f64) -> f64
     {
         let x0 = self.h0.filter(rate, x)[1];
         let x1 = self.h1.filter(rate, x0)[0];

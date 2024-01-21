@@ -6,15 +6,17 @@ use vst::util::AtomicFloat;
 use crate::DELAY;
 use crate::waveform::Waveform;
 
-const MIN_FREQ: f32 = 0.01;
-const MAX_FREQ: f32 = 10.0;
+const MIN_FREQ: f32 = 0.12742313;
+const MAX_FREQ: f32 = 58.354592;
 const LENGTH_CURVE: f32 = 4.0;
 
 #[derive(Clone, Copy)]
 pub enum Parameter
 {
-    Waveform,
+    //Waveform,
+    Sine,
     Frequency,
+    DutyCycle,
     Length,
     Depth,
     Feedback,
@@ -23,9 +25,12 @@ pub enum Parameter
 
 impl Parameter
 {
-    pub const PARAMETERS: [Self; 6] = [
-        Self::Waveform,
+    pub const VARIANT_COUNT: usize = core::mem::variant_count::<Self>();
+    pub const VARIANTS: [Self; Self::VARIANT_COUNT] = [
+        //Self::Waveform,
+        Self::Sine,
         Self::Frequency,
+        Self::DutyCycle,
         Self::Length,
         Self::Depth,
         Self::Feedback,
@@ -34,18 +39,37 @@ impl Parameter
 
     pub fn from(i: i32) -> Self
     {
-        Self::PARAMETERS[i as usize]
+        Self::VARIANTS[i as usize]
     }
 }
 
 pub struct BlueChorusParameters
 {
-    pub waveform: AtomicU8,
+    //pub waveform: AtomicU8,
+    pub sine: AtomicFloat,
     pub frequency: AtomicFloat,
+    pub duty_cycle: AtomicFloat,
     pub length: AtomicFloat,
     pub depth: AtomicFloat,
     pub feedback: AtomicFloat,
     pub mix: AtomicFloat
+}
+
+impl Default for BlueChorusParameters
+{
+    fn default() -> Self
+    {
+        Self {
+            //waveform: AtomicU8::from(Waveform::Triangle as u8),
+            sine: AtomicFloat::from(0.0),
+            frequency: AtomicFloat::from(1.0),
+            duty_cycle: AtomicFloat::from(0.5),
+            length: AtomicFloat::from(0.005/DELAY as f32),
+            depth: AtomicFloat::from(1.0),
+            feedback: AtomicFloat::from(0.0),
+            mix: AtomicFloat::from(0.50)
+        }
+    }
 }
 
 impl PluginParameters for BlueChorusParameters
@@ -54,30 +78,34 @@ impl PluginParameters for BlueChorusParameters
     {
         match Parameter::from(index)
         {
-            Parameter::Waveform => "".to_string(),
-            Parameter::Frequency => "Hz".to_string(),
-            Parameter::Length => "ms".to_string(),
-            Parameter::Depth => "%".to_string(),
-            Parameter::Feedback => "%".to_string(),
-            Parameter::Mix => "%".to_string()
-        }
+            //Parameter::Waveform => "",
+            Parameter::Sine => "%",
+            Parameter::Frequency => "Hz",
+            Parameter::DutyCycle => "%",
+            Parameter::Length => "ms",
+            Parameter::Depth => "%",
+            Parameter::Feedback => "%",
+            Parameter::Mix => "%"
+        }.to_string()
     }
 
     fn get_parameter_text(&self, index: i32) -> String
     {
         match Parameter::from(index)
         {
-            Parameter::Waveform => match Waveform::from(self.waveform.load(Ordering::Relaxed))
+            /*Parameter::Waveform => match Waveform::VARIANTS[self.waveform.load(Ordering::Relaxed) as usize]
             {
-                Waveform::Sine => "Sine".to_string(),
-                Waveform::Triangle => "Triangle".to_string(),
-                Waveform::Sawtooth => "Sawtooth 1".to_string(),
-                Waveform::InverseSawtooth => "Sawtooth 2".to_string(),
-                Waveform::Square => "Square".to_string(),
-                Waveform::Noise => "Noise".to_string()
-            },
+                Waveform::Triangle => "Triangle",
+                Waveform::Triangle2 => "Triangle 2",
+                Waveform::Sawtooth => "Sawtooth",
+                Waveform::Sawtooth2 => "Sawtooth 2",
+                Waveform::Square => "Square",
+                Waveform::Square2 => "Square 2",
+            }.to_string(),*/
+            Parameter::Sine => format!("{:.3}", 100.0*self.sine.get()),
             Parameter::Frequency => format!("{:.3}", self.frequency.get()),
-            Parameter::Length => format!("{:.3}", 1000.0*DELAY*self.length.get()),
+            Parameter::DutyCycle => format!("{:.3}", 100.0*self.duty_cycle.get()),
+            Parameter::Length => format!("{:.3}", 1000.0*DELAY as f32*self.length.get()),
             Parameter::Depth => format!("{:.3}", 100.0*self.depth.get()),
             Parameter::Feedback => format!("{:.3}", 100.0*self.feedback.get()),
             Parameter::Mix => format!("{:.3}", 100.0*self.mix.get())
@@ -88,13 +116,15 @@ impl PluginParameters for BlueChorusParameters
     {
         match Parameter::from(index)
         {
-            Parameter::Waveform => "Waveform".to_string(),
-            Parameter::Frequency => "Frequency".to_string(),
-            Parameter::Length => "Length".to_string(),
-            Parameter::Depth => "Depth".to_string(),
-            Parameter::Feedback => "Feedback".to_string(),
-            Parameter::Mix => "Mix".to_string(),
-        }
+            //Parameter::Waveform => "Waveform",
+            Parameter::Sine => "Sine",
+            Parameter::Frequency => "Frequency",
+            Parameter::DutyCycle => "Duty Cycle",
+            Parameter::Length => "Length",
+            Parameter::Depth => "Depth",
+            Parameter::Feedback => "Feedback",
+            Parameter::Mix => "Mix",
+        }.to_string()
     }
 
     /// Get the value of parameter at `index`. Should be value between 0.0 and 1.0.
@@ -102,8 +132,10 @@ impl PluginParameters for BlueChorusParameters
     {
         match Parameter::from(index)
         {
-            Parameter::Waveform => self.waveform.load(Ordering::Relaxed) as f32/(Waveform::WAVEFORMS.len() - 1) as f32,
+            //Parameter::Waveform => self.waveform.load(Ordering::Relaxed) as f32/(Waveform::VARIANTS.len() - 1) as f32,
+            Parameter::Sine => self.sine.get(),
             Parameter::Frequency => (self.frequency.get().log2() - MIN_FREQ.log2())/(MAX_FREQ.log2() - MIN_FREQ.log2()),
+            Parameter::DutyCycle => self.duty_cycle.get(),
             Parameter::Length => self.length.get().powf(1.0/LENGTH_CURVE),
             Parameter::Depth => self.depth.get(),
             Parameter::Feedback => self.feedback.get()*0.5 + 0.5,
@@ -115,8 +147,10 @@ impl PluginParameters for BlueChorusParameters
     {
         match Parameter::from(index)
         {
-            Parameter::Waveform => self.waveform.store((value*(Waveform::WAVEFORMS.len() - 1) as f32).round() as u8, Ordering::Relaxed),
+            //Parameter::Waveform => self.waveform.store((value*(Waveform::VARIANTS.len() - 1) as f32).round() as u8, Ordering::Relaxed),
+            Parameter::Sine => self.sine.set(value),
             Parameter::Frequency => self.frequency.set((value*(MAX_FREQ.log2() - MIN_FREQ.log2()) + MIN_FREQ.log2()).exp2()),
+            Parameter::DutyCycle => self.duty_cycle.set(value),
             Parameter::Length => self.length.set(value.powf(LENGTH_CURVE)),
             Parameter::Depth => self.depth.set(value),
             Parameter::Feedback => self.feedback.set(value*2.0 - 1.0),
@@ -140,39 +174,37 @@ impl PluginParameters for BlueChorusParameters
 
     fn can_be_automated(&self, index: i32) -> bool
     {
-        index < Parameter::PARAMETERS.len() as i32
+        index < Parameter::VARIANTS.len() as i32
     }
+
 
     fn get_preset_data(&self) -> Vec<u8>
     {
-        [
-            vec![self.waveform.load(Ordering::Relaxed)],
-            self.frequency.get().to_le_bytes().to_vec(),
-            self.length.get().to_le_bytes().to_vec(),
-            self.depth.get().to_le_bytes().to_vec(),
-            self.feedback.get().to_le_bytes().to_vec(),
-            self.mix.get().to_le_bytes().to_vec(),
-        ].concat()
+        Parameter::VARIANTS.map(|v| self.get_parameter(v as i32).to_le_bytes())
+            .concat()
     }
 
     fn get_bank_data(&self) -> Vec<u8>
     {
-        self.get_preset_data()
+        Parameter::VARIANTS.map(|v| self.get_parameter(v as i32).to_le_bytes())
+            .concat()
     }
 
     fn load_preset_data(&self, data: &[u8])
     {
-        let mut i = 0;
-        self.waveform.store(data[i], Ordering::Relaxed); i += 1;
-        self.frequency.set(f32::from_le_bytes(*data[i..].split_array_ref().0)); i += 4;
-        self.length.set(f32::from_le_bytes(*data[i..].split_array_ref().0)); i += 4;
-        self.depth.set(f32::from_le_bytes(*data[i..].split_array_ref().0)); i += 4;
-        self.feedback.set(f32::from_le_bytes(*data[i..].split_array_ref().0)); i += 4;
-        self.mix.set(f32::from_le_bytes(*data[i..].split_array_ref().0)); i += 4;
+        for (v, &b) in Parameter::VARIANTS.into_iter()
+            .zip(data.array_chunks())
+        {
+            self.set_parameter(v as i32, f32::from_le_bytes(b));
+        }
     }
 
     fn load_bank_data(&self, data: &[u8])
     {
-        self.load_preset_data(data)
+        for (v, &b) in Parameter::VARIANTS.into_iter()
+            .zip(data.array_chunks())
+        {
+            self.set_parameter(v as i32, f32::from_le_bytes(b));
+        }
     }
 }
