@@ -19,7 +19,7 @@ impl TappedDelayLine
         }
     }
 
-    pub fn siso(&mut self, x: f64) -> f64
+    pub fn delay(&mut self, x: f64) -> f64
     {
         let i0 = self.tap.floor() as usize;
         let i1 = self.tap.ceil() as usize;
@@ -35,6 +35,6 @@ impl TappedDelayLine
             self.w.pop_back();
         }
 
-        return self.w.get(i0).map(|&w| w).unwrap_or(0.0)*p0 + self.w.get(i1).map(|&w| w).unwrap_or(0.0)*p1
+        self.w.get(i0).map(|&w| w).unwrap_or(0.0)*p0 + self.w.get(i1).map(|&w| w).unwrap_or(0.0)*p1
     }
 }

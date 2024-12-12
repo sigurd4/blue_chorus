@@ -1,4 +1,4 @@
-use real_time_fir_iir_filters::{iir::{first::FirstOrderRCFilter, second::SecondOrderSallenKeyFilter}, Filter};
+use real_time_fir_iir_filters::{iir::{first::{FirstOrderRCFilter, RC}, second::{RC2SallenKey, SecondOrderSallenKeyFilter}}, rtf::Rtf};
 
 const R9: f64 = 330000.0;
 const R10: f64 = 10000.0;
@@ -13,7 +13,7 @@ pub struct FilterChorus
 {
     h0: FirstOrderRCFilter<f64>,
     h1: FirstOrderRCFilter<f64>,
-    h2: SecondOrderSallenKeyFilter<f64>,
+    h2: SecondOrderSallenKeyFilter<f64, RC2SallenKey<f64>>,
 }
 
 impl FilterChorus
@@ -21,9 +21,9 @@ impl FilterChorus
     pub fn new() -> Self
     {
         Self {
-            h0: FirstOrderRCFilter::new(R9, C5),
-            h1: FirstOrderRCFilter::new(R10, C6),
-            h2: SecondOrderSallenKeyFilter::new(R10, R10, C7, C8),
+            h0: FirstOrderRCFilter::new(RC::new(R9, C5)),
+            h1: FirstOrderRCFilter::new(RC::new(R10, C6)),
+            h2: SecondOrderSallenKeyFilter::new(RC2SallenKey::new(R10, C7, R10, C8)),
         }
     }
 

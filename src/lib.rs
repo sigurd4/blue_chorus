@@ -4,12 +4,15 @@
 #![feature(variant_count)]
 #![feature(array_chunks)]
 
-use std::f64::consts::{TAU, PI};
+use std::f64::consts::TAU;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU8, Ordering};
 
+use num::traits::MulAddAssign;
 use num::Float;
-use real_time_fir_iir_filters::{iir::first::{FirstOrderFilter, FirstOrderRCFilter}, Filter};
+use real_time_fir_iir_filters::iir::first::{Omega, RC};
+use real_time_fir_iir_filters::rtf::Rtf;
+use real_time_fir_iir_filters::static_rtf::StaticRtfBase;
+use real_time_fir_iir_filters::iir::first::{FirstOrderFilter, FirstOrderRCFilter};
 use vst::{prelude::*, plugin_main};
 
 use self::filter::FilterChorus;
@@ -59,8 +62,8 @@ impl BlueChorusPlugin
         self.lfo.omega = self.param.frequency.get() as f64*TAU;
         self.lfo.waveform = Waveform::Triangle;//Waveform::VARIANTS[self.param.waveform.load(Ordering::Relaxed) as usize];
         let sine = self.param.sine.get() as f64;
-        self.depth = CHANGE*self.param.depth.get() as f64 + (1.0 - CHANGE)*self.depth;
-        self.length = CHANGE*self.param.length.get() as f64 + (1.0 - CHANGE)*self.length;
+        self.depth.mul_add_assign(1.0 - CHANGE, CHANGE*self.param.depth.get() as f64);
+        self.length.mul_add_assign(1.0 - CHANGE, CHANGE*self.param.length.get() as f64);
         let feedback = self.param.feedback.get() as f64;
         let duty_cycle = self.param.duty_cycle.get() as f64;
         let mix = self.param.mix.get() as f64;
@@ -69,7 +72,7 @@ impl BlueChorusPlugin
 
         let theta0 = self.lfo.theta;
         self.lfo.duty_cycle = duty_cycle;
-        let w_lfo = self.filter_lfo.w;
+        let w_lfo = self.filter_lfo.get_internals().0.w;
 
         for ((((((input_channel, output_channel), delay_line), filter_input), [filter_chorus1, filter_chorus2]), filter_feedback), filter_delay) in buffer.zip()
             .zip(self.delay_line.iter_mut())
@@ -78,30 +81,31 @@ impl BlueChorusPlugin
             .zip(self.filter_feedback.iter_mut())
             .zip(self.filter_delay.iter_mut())
         {
-            self.filter_lfo.w = w_lfo;
+            self.filter_lfo.get_internals_mut().0.w = w_lfo;
             self.lfo.theta = theta0;
             for (input_sample, output_sample) in input_channel.into_iter()
                 .zip(output_channel.into_iter())
             {
                 let lfo = self.lfo.next(self.rate);
-                let lfo = Waveform::triangle_to_sin(lfo)*sine + lfo*(1.0 - sine);
-                let lfo = 0.5*self.filter_lfo.filter(self.rate, lfo*self.depth)[0] + 0.5;
+                let lfo = Waveform::triangle_to_sin(lfo).mul_add(sine, lfo*(1.0 - sine));
+                let lfo = self.filter_lfo.filter(self.rate, lfo*self.depth)[0].mul_add(0.5, 0.5);
                 delay_line.tap = lfo*filter_delay.filter(self.rate, self.length*(stages - 1) as f64)[0];
 
                 let x = filter_input.filter(self.rate, input_sample.to_f64().unwrap())[1];
                 
                 let x_ = filter_chorus1.filter(self.rate, x);
 
-                let y = filter_chorus2.filter(self.rate, delay_line.siso(x_));
+                let y = filter_chorus2.filter(self.rate, delay_line.delay(x_));
                 let x_ = x + filter_feedback.filter(self.rate, y*feedback)[1];
-                delay_line.w[0] = (x_*DIST)/(1.0 + (x_*DIST).abs())/DIST;
+                delay_line.w[0] = x_/x_.abs().mul_add(DIST, 1.0);
 
-                *output_sample = F::from(y*mix + x*(1.0 - mix)).unwrap();
+                *output_sample = F::from(x.mul_add(1.0 - mix, y*mix)).unwrap();
             }
         }
     }
 }
 
+#[allow(deprecated)]
 impl Plugin for BlueChorusPlugin
 {
     fn new(_host: HostCallback) -> Self
@@ -113,11 +117,11 @@ impl Plugin for BlueChorusPlugin
             depth: 1.0,
             length: 0.01/DELAY,
             lfo: LFO::new(TAU*1.0, 0.5, Waveform::Triangle),
-            filter_delay: [FirstOrderFilter::new(F_DELAY); CHANNEL_COUNT],
-            filter_input: [FirstOrderRCFilter::new(471000.0, 0.000000047); CHANNEL_COUNT],
+            filter_delay: [FirstOrderFilter::new(Omega::new(F_DELAY*TAU)); CHANNEL_COUNT],
+            filter_input: [FirstOrderRCFilter::new(RC::new(471000.0, 0.000000047)); CHANNEL_COUNT],
             filter_chorus: [[FilterChorus::new(); 2]; CHANNEL_COUNT],
-            filter_lfo: FirstOrderRCFilter::new(220000.0, 0.000000010),
-            filter_feedback: [FirstOrderRCFilter::new(39000.0 + 50000.0*0.5, 0.000000047); CHANNEL_COUNT],
+            filter_lfo: FirstOrderRCFilter::new(RC::new(220000.0, 0.000000010)),
+            filter_feedback: [FirstOrderRCFilter::new(RC::new(39000.0 + 50000.0*0.5, 0.000000047)); CHANNEL_COUNT],
             delay_line: [(); CHANNEL_COUNT].map(|()| TappedDelayLine::new()),
             rate: 44100.0
         }

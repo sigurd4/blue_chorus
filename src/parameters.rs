@@ -1,10 +1,7 @@
-use std::sync::atomic::{AtomicU8, Ordering};
-
 use vst::prelude::PluginParameters;
 use vst::util::AtomicFloat;
 
 use crate::DELAY;
-use crate::waveform::Waveform;
 
 const MIN_FREQ: f32 = 0.12742313;
 const MAX_FREQ: f32 = 58.354592;

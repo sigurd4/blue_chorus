@@ -7,9 +7,9 @@ edition = "2021"
 
 [dependencies]
 vst = "0.4.0"
-real_time_fir_iir_filters = "0.6.3"
+real_time_fir_iir_filters = "1.0.8"
 rand = "0.8.5"
-num = "0.4.1"
+num = "0.4.3"
 
 [lib]
 name = "blue_chorus"
