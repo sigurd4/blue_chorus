@@ -19,19 +19,25 @@ impl BlueChorusChannel
         let BlueChorusChannel { delay_line, filter_input, filter_chorus: [filter_chorus1, filter_chorus2], filter_feedback } = self;
         delay_line.tap = cache.tap;
 
-        let [mut x] = filter_input.filter(cache.rate, x.to_f64().unwrap());
+        let [x] = filter_input.filter(cache.rate, x.to_f64().unwrap());
 
         let y = filter_chorus2.filter(cache.rate, delay_line.delay(filter_chorus1.filter(cache.rate, x), stages));
 
         let [x_f] = filter_feedback.filter(cache.rate, y*feedback);
-        x += x_f;
 
         if let Some(w) = delay_line.w.front_mut()
         {
-            *w = x/(x*x).mul_add(DIST, 1.0);
+            *w += x_f;
+            *w = Self::clip(*w);
         }
 
         F::from(x.mul_add(1.0 - mix, y*mix)).unwrap()
+    }
+
+    fn clip(x: f64) -> f64
+    {
+        let x_abs = x.abs();
+        x/(x_abs*(DIST.0 + x_abs*DIST.1) + 1.0)
     }
 }
 
