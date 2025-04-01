@@ -28,7 +28,7 @@ impl BlueChorusChannel
 
         if let Some(w) = delay_line.w.front_mut()
         {
-            *w = x/x.abs().mul_add(DIST, 1.0);
+            *w = x/(x*x).mul_add(DIST, 1.0);
         }
 
         F::from(x.mul_add(1.0 - mix, y*mix)).unwrap()
