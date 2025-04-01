@@ -37,7 +37,7 @@ impl BlueChorusChannel
     fn clip(x: f64) -> f64
     {
         let x_abs = x.abs();
-        x/(x_abs*(DIST.0 + x_abs*DIST.1) + 1.0)
+        x/(x_abs*(DIST.0 + x_abs*(DIST.1 + x_abs*DIST.2)) + 1.0)
     }
 }
 

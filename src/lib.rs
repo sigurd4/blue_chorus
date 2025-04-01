@@ -38,7 +38,7 @@ moddef::moddef!(
 
 const DELAY: f64 = 0.1;
 const CHANGE: f64 = 1.0;
-const DIST: (f64, f64) = (10e-6, 100e-9);
+const DIST: (f64, f64, f64) = (10e-6, 20e-9, 1e-9);
 const F_DELAY: f64 = 1.0;
 
 struct BlueChorusPlugin
