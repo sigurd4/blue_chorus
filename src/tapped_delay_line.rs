@@ -1,40 +1,36 @@
 use std::collections::VecDeque;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TappedDelayLine
 {
     pub w: VecDeque<f64>,
-    pub stages: usize,
     pub tap: f64
 }
 
 impl TappedDelayLine
 {
-    pub fn new() -> Self
+    pub fn delay(&mut self, x: f64, length: usize) -> f64
+    {
+        let i0 = self.tap.floor() as usize;
+        let i1 = i0 + 1;
+        let p = self.tap.fract();
+        let q = 1.0 - p;
+
+        self.w.push_front(x);
+        self.w.truncate(length);
+
+        self.w.get(i0).map(|&x| x*q).unwrap_or(0.0)
+            + self.w.get(i1).map(|&x| x*p).unwrap_or(0.0)
+    }
+}
+
+impl Default for TappedDelayLine
+{
+    fn default() -> Self
     {
         Self {
             w: VecDeque::new(),
-            stages: 0,
             tap: 0.0
         }
-    }
-
-    pub fn delay(&mut self, x: f64) -> f64
-    {
-        let i0 = self.tap.floor() as usize;
-        let i1 = self.tap.ceil() as usize;
-        let p1 = self.tap - self.tap.floor();
-        let p0 = 1.0 - p1;
-
-        self.stages = self.stages.max(i1);
-
-        self.w.truncate(self.stages);
-        self.w.push_front(x);
-        while self.w.len() > self.stages
-        {
-            self.w.pop_back();
-        }
-
-        self.w.get(i0).map(|&w| w).unwrap_or(0.0)*p0 + self.w.get(i1).map(|&w| w).unwrap_or(0.0)*p1
     }
 }

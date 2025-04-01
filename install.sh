@@ -1,0 +1,1 @@
+cargo build --release && mkdir -p ~/.vst && cp ./target/release/*.so ~/.vst/

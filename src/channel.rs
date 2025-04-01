@@ -1,0 +1,49 @@
+use num::Float;
+use real_time_fir_iir_filters::{conf::HighPass, filters::iir::first::FirstOrderRCFilter, param::RC, rtf::Rtf};
+
+use crate::{cache::BlueChorusCache, filter::FilterChorus, tapped_delay_line::TappedDelayLine, DIST};
+
+#[derive(Clone, Debug)]
+pub struct BlueChorusChannel
+{
+    delay_line: TappedDelayLine,
+    filter_input: FirstOrderRCFilter<HighPass, f64>,
+    filter_chorus: [FilterChorus; 2],
+    filter_feedback: FirstOrderRCFilter<HighPass, f64>
+}
+
+impl BlueChorusChannel
+{
+    pub fn process<F: Float>(&mut self, cache: &BlueChorusCache, feedback: f64, mix: f64, stages: usize, x: F) -> F
+    {
+        let BlueChorusChannel { delay_line, filter_input, filter_chorus: [filter_chorus1, filter_chorus2], filter_feedback } = self;
+        delay_line.tap = cache.tap;
+
+        let [mut x] = filter_input.filter(cache.rate, x.to_f64().unwrap());
+
+        let y = filter_chorus2.filter(cache.rate, delay_line.delay(filter_chorus1.filter(cache.rate, x), stages));
+
+        let [x_f] = filter_feedback.filter(cache.rate, y*feedback);
+        x += x_f;
+
+        if let Some(w) = delay_line.w.front_mut()
+        {
+            *w = x/x.abs().mul_add(DIST, 1.0);
+        }
+
+        F::from(x.mul_add(1.0 - mix, y*mix)).unwrap()
+    }
+}
+
+impl Default for  BlueChorusChannel
+{
+    fn default() -> Self
+    {
+        Self {
+            filter_input: FirstOrderRCFilter::new::<HighPass>(RC {r: 471e3, c: 47e-9}),
+            filter_chorus: Default::default(),
+            filter_feedback: FirstOrderRCFilter::new::<HighPass>(RC {r: 39e3 + 50e3*0.5, c: 47e-9}),
+            delay_line: Default::default(),
+        }
+    }
+}

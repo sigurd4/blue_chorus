@@ -1,6 +1,7 @@
 use vst::prelude::PluginParameters;
 use vst::util::AtomicFloat;
 
+use crate::bank::BlueChorusBank;
 use crate::DELAY;
 
 const MIN_FREQ: f32 = 0.12742313;
@@ -51,21 +52,44 @@ pub struct BlueChorusParameters
     pub feedback: AtomicFloat,
     pub mix: AtomicFloat
 }
+impl  BlueChorusParameters
+{
+    pub fn store(&self, data: BlueChorusBank)
+    {
+        self.sine.set(data.sine);
+        self.frequency.set(data.frequency);
+        self.duty_cycle.set(data.duty_cycle);
+        self.length.set(data.length);
+        self.feedback.set(data.depth);
+        self.mix.set(data.mix);
+    }
 
+    pub fn load(&self) -> BlueChorusBank
+    {
+        self.into()
+    }
+}
+impl From<BlueChorusBank> for BlueChorusParameters
+{
+    fn from(bank: BlueChorusBank) -> Self
+    {
+        let BlueChorusBank {sine, frequency, duty_cycle, length, depth, feedback, mix} = bank;
+        Self {
+            sine: AtomicFloat::new(sine),
+            frequency: AtomicFloat::new(frequency),
+            duty_cycle: AtomicFloat::new(duty_cycle),
+            length: AtomicFloat::new(length),
+            depth: AtomicFloat::new(depth),
+            feedback: AtomicFloat::new(feedback),
+            mix: AtomicFloat::new(mix)
+        }
+    }
+}
 impl Default for BlueChorusParameters
 {
     fn default() -> Self
     {
-        Self {
-            //waveform: AtomicU8::from(Waveform::Triangle as u8),
-            sine: AtomicFloat::from(0.0),
-            frequency: AtomicFloat::from(1.0),
-            duty_cycle: AtomicFloat::from(0.5),
-            length: AtomicFloat::from(0.005/DELAY as f32),
-            depth: AtomicFloat::from(1.0),
-            feedback: AtomicFloat::from(0.0),
-            mix: AtomicFloat::from(0.50)
-        }
+        BlueChorusBank::default().into()
     }
 }
 
@@ -177,31 +201,21 @@ impl PluginParameters for BlueChorusParameters
 
     fn get_preset_data(&self) -> Vec<u8>
     {
-        Parameter::VARIANTS.map(|v| self.get_parameter(v as i32).to_le_bytes())
-            .concat()
+        self.get_bank_data()
     }
 
     fn get_bank_data(&self) -> Vec<u8>
     {
-        Parameter::VARIANTS.map(|v| self.get_parameter(v as i32).to_le_bytes())
-            .concat()
+        serde_json::to_vec(&self.load()).expect("Serialization error")
     }
 
     fn load_preset_data(&self, data: &[u8])
     {
-        for (v, &b) in Parameter::VARIANTS.into_iter()
-            .zip(data.array_chunks())
-        {
-            self.set_parameter(v as i32, f32::from_le_bytes(b));
-        }
+        self.load_bank_data(data);
     }
 
     fn load_bank_data(&self, data: &[u8])
     {
-        for (v, &b) in Parameter::VARIANTS.into_iter()
-            .zip(data.array_chunks())
-        {
-            self.set_parameter(v as i32, f32::from_le_bytes(b));
-        }
+        self.store(serde_json::from_slice(data).expect("Deserialization error"))
     }
 }

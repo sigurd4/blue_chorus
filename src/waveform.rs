@@ -4,16 +4,16 @@ use std::{fmt::Display, f64::consts::{FRAC_PI_2, TAU}};
 pub enum Waveform
 {
     Triangle = 0,
-    Triangle2 = 1,
+    /*Triangle2 = 1,
     Sawtooth = 2,
     Sawtooth2 = 3,
     Square = 4,
-    Square2 = 5
+    Square2 = 5*/
 }
 
 impl Waveform
 {
-    pub const VARIANT_COUNT: usize = core::mem::variant_count::<Self>();
+    /*pub const VARIANT_COUNT: usize = core::mem::variant_count::<Self>();
     pub const VARIANTS: [Self; Self::VARIANT_COUNT] = [
         Self::Triangle,
         Self::Triangle2,
@@ -21,7 +21,7 @@ impl Waveform
         Self::Sawtooth2,
         Self::Square,
         Self::Square2
-    ];
+    ];*/
 }
 
 impl Waveform
@@ -31,7 +31,7 @@ impl Waveform
         if phase < duty_cycle {2.0*phase/duty_cycle - 1.0} else {1.0 - 2.0*(phase - duty_cycle)/(TAU - duty_cycle)}
     }
 
-    pub fn sawtooth2(phase: f64, duty_cycle: f64) -> f64
+    /*pub fn sawtooth2(phase: f64, duty_cycle: f64) -> f64
     {
         if phase < duty_cycle {2.0*phase/duty_cycle - 1.0} else {2.0*(phase - duty_cycle)/(TAU - duty_cycle) - 1.0}
     }
@@ -54,7 +54,7 @@ impl Waveform
     fn square2(phase: f64, duty_cycle: f64) -> f64
     {
         if Self::sawtooth2(phase, duty_cycle) < 0.0 {-1.0} else {1.0}
-    }
+    }*/
     
     pub fn triangle_to_sin(x: f64) -> f64
     {
@@ -66,11 +66,11 @@ impl Waveform
         match self
         {
             Waveform::Triangle => Self::triangle(phase, duty_cycle),
-            Waveform::Triangle2 => Self::triangle2(phase, duty_cycle),
+            /*Waveform::Triangle2 => Self::triangle2(phase, duty_cycle),
             Waveform::Sawtooth => Self::sawtooth(phase, duty_cycle),
             Waveform::Sawtooth2 => Self::sawtooth2(phase, duty_cycle),
             Waveform::Square => Self::square(phase, duty_cycle),
-            Waveform::Square2 => Self::square2(phase, duty_cycle),
+            Waveform::Square2 => Self::square2(phase, duty_cycle),*/
         }
     }
 }
@@ -82,11 +82,11 @@ impl Display for Waveform
         match self
         {
             Waveform::Triangle => write!(f, "Triangle"),
-            Waveform::Triangle2 => write!(f, "Triangle2"),
+            /*Waveform::Triangle2 => write!(f, "Triangle2"),
             Waveform::Sawtooth => write!(f, "Sawtooth"),
             Waveform::Sawtooth2 => write!(f, "Sawtooth2"),
             Waveform::Square => write!(f, "Square"),
-            Waveform::Square2 => write!(f, "Square2"),
+            Waveform::Square2 => write!(f, "Square2"),*/
         }
     }
 }
