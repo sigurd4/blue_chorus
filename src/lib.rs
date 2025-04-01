@@ -14,10 +14,10 @@ use channel::BlueChorusChannel;
 use num::Float;
 use real_time_fir_iir_filters::change::Change;
 use real_time_fir_iir_filters::conf::LowPass;
+use real_time_fir_iir_filters::filters::iir::first::{FirstOrderFilter, FirstOrderRCFilter};
 use real_time_fir_iir_filters::param::{Omega, RC};
 use real_time_fir_iir_filters::rtf::Rtf;
-use real_time_fir_iir_filters::filters::iir::first::{FirstOrderFilter, FirstOrderRCFilter};
-use vst::{prelude::*, plugin_main};
+use vst::{plugin_main, prelude::*};
 
 use self::lfo::LFO;
 use self::parameters::{BlueChorusParameters, Parameter};
@@ -57,13 +57,13 @@ impl BlueChorusPlugin
 {
     fn stages(&self) -> usize
     {
-        (self.cache.rate*DELAY) as usize
+        (self.cache.rate * DELAY) as usize
     }
 
     fn process<F: Float>(&mut self, buffer: &mut AudioBuffer<F>)
     {
-        self.lfo.omega = self.param.frequency.get() as f64*TAU;
-        self.lfo.waveform = Waveform::Triangle;//Waveform::VARIANTS[self.param.waveform.load(Ordering::Relaxed) as usize];
+        self.lfo.omega = self.param.frequency.get() as f64 * TAU;
+        self.lfo.waveform = Waveform::Triangle; //Waveform::VARIANTS[self.param.waveform.load(Ordering::Relaxed) as usize];
 
         self.cache.depth.change(self.param.depth.get() as f64, CHANGE);
         self.cache.length.change(self.param.length.get() as f64, CHANGE);
@@ -73,27 +73,20 @@ impl BlueChorusPlugin
         let duty_cycle = self.param.duty_cycle.get() as f64;
         let mix = self.param.mix.get() as f64;
         let stages = self.stages();
-        let tap = self.cache.length*stages as f64;
+        let tap = self.cache.length * stages as f64;
 
         self.lfo.duty_cycle = duty_cycle;
 
-        let mut channels = buffer.zip()
-            .map(|(i, o)| i.iter().zip(o.iter_mut()))
-            .array_chunks::<CHANNEL_COUNT>()
-            .next()
-            .unwrap();
+        let mut channels = buffer.zip().map(|(i, o)| i.iter().zip(o.iter_mut())).array_chunks::<CHANNEL_COUNT>().next().unwrap();
 
-        'lp:
-        loop
+        'lp: loop
         {
             let lfo = self.lfo.next(self.cache.rate);
-            let lfo = Waveform::triangle_to_sin(lfo).mul_add(sine, lfo*(1.0 - sine));
-            let [lfo] = self.filter_lfo.filter(self.cache.rate, lfo*self.cache.depth);
-            [self.cache.tap] = self.filter_delay.filter(self.cache.rate, tap*lfo.mul_add(0.5, 0.5));
+            let lfo = Waveform::triangle_to_sin(lfo).mul_add(sine, lfo * (1.0 - sine));
+            let [lfo] = self.filter_lfo.filter(self.cache.rate, lfo * self.cache.depth);
+            [self.cache.tap] = self.filter_delay.filter(self.cache.rate, tap * lfo.mul_add(0.5, 0.5));
 
-            for (xy, channel) in channels.iter_mut()
-                .map(Iterator::next)
-                .zip(self.channel.iter_mut())
+            for (xy, channel) in channels.iter_mut().map(Iterator::next).zip(self.channel.iter_mut())
             {
                 match xy
                 {
@@ -117,9 +110,9 @@ impl Plugin for BlueChorusPlugin
         BlueChorusPlugin {
             param: Arc::new(param),
             channel: Default::default(),
-            lfo: LFO::new(TAU*1.0, 0.5, Waveform::Triangle),
-            filter_lfo: FirstOrderRCFilter::new::<LowPass>(RC {r: 220e3, c: 10e-9}),
-            filter_delay: FirstOrderFilter::new::<LowPass>(Omega {omega: F_DELAY*TAU}),
+            lfo: LFO::new(TAU * 1.0, 0.5, Waveform::Triangle),
+            filter_lfo: FirstOrderRCFilter::new::<LowPass>(RC { r: 220e3, c: 10e-9 }),
+            filter_delay: FirstOrderFilter::new::<LowPass>(Omega { omega: F_DELAY * TAU }),
             cache
         }
     }
