@@ -1,7 +1,7 @@
-use num::Float;
 use real_time_fir_iir_filters::{conf::HighPass, filters::iir::first::FirstOrderRCFilter, param::RC, rtf::Rtf};
+use saturation::{LinMoid, Saturation};
 
-use crate::{cache::BlueChorusCache, filter::FilterChorus, tapped_delay_line::TappedDelayLine, DIST};
+use crate::{cache::BlueChorusCache, filter::FilterChorus, tapped_delay_line::TappedDelayLine};
 
 #[derive(Clone, Debug)]
 pub struct BlueChorusChannel
@@ -28,16 +28,10 @@ impl BlueChorusChannel
         if let Some(w) = delay_line.w.front_mut()
         {
             *w += x_f;
-            *w = Self::clip(*w);
+            *w = LinMoid.saturate(*w, ..);
         }
 
-        F::from(x.mul_add(1.0 - mix, y*mix)).unwrap()
-    }
-
-    fn clip(x: f64) -> f64
-    {
-        let x_abs = x.abs();
-        x/(x_abs*(DIST.0 + x_abs*(DIST.1 + x_abs*DIST.2)) + 1.0)
+        x.mul_add(1.0 - mix, y*mix)
     }
 }
 
