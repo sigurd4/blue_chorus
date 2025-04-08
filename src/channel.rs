@@ -40,9 +40,15 @@ impl Default for  BlueChorusChannel
     fn default() -> Self
     {
         Self {
-            filter_input: FirstOrderRCFilter::new::<HighPass>(RC {r: 471e3, c: 47e-9}),
+            filter_input: FirstOrderRCFilter::new::<HighPass>(RC {
+                r: 471e3,
+                c: 47e-9
+            }),
             filter_chorus: Default::default(),
-            filter_feedback: FirstOrderRCFilter::new::<HighPass>(RC {r: 39e3 + 50e3*0.5, c: 47e-9}),
+            filter_feedback: FirstOrderRCFilter::new::<HighPass>(RC {
+                r: 39e3 + 50e3*0.5,
+                c: 47e-9
+            }),
             delay_line: Default::default(),
         }
     }
