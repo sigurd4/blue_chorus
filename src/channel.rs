@@ -14,12 +14,12 @@ pub struct BlueChorusChannel
 
 impl BlueChorusChannel
 {
-    pub fn process<F: Float>(&mut self, cache: &BlueChorusCache, feedback: f64, mix: f64, stages: usize, x: F) -> F
+    pub fn process(&mut self, cache: &BlueChorusCache, feedback: f64, mix: f64, stages: usize, x: f64) -> f64
     {
         let BlueChorusChannel { delay_line, filter_input, filter_chorus: [filter_chorus1, filter_chorus2], filter_feedback } = self;
         delay_line.tap = cache.tap;
 
-        let [x] = filter_input.filter(cache.rate, x.to_f64().unwrap());
+        let [x] = filter_input.filter(cache.rate, x);
 
         let y = filter_chorus2.filter(cache.rate, delay_line.delay(filter_chorus1.filter(cache.rate, x), stages));
 

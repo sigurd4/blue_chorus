@@ -90,7 +90,10 @@ impl BlueChorusPlugin
             {
                 match xy
                 {
-                    Some((&x, y)) => *y = channel.process(&self.cache, feedback, mix, stages, x),
+                    Some((&x, y)) => {
+                        let x = x.to_f64().unwrap();
+                        *y = F::from(channel.process(&self.cache, feedback, mix, stages, x)).unwrap()
+                    },
                     _ => break 'lp
                 }
             }

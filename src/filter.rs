@@ -20,10 +20,11 @@ impl FilterChorus
 
     pub fn filter(&mut self, rate: f64, x: f64) -> f64
     {
-        let [x0] = self.h0.filter(rate, x);
-        let [x1] = self.h1.filter(rate, x0);
-        let [y] = self.h2.filter(rate, x1);
-        y
+        let mut z = x;
+        [z] = self.h0.filter(rate, z);
+        [z] = self.h1.filter(rate, z);
+        [z] = self.h2.filter(rate, z);
+        z
     }
 }
 
@@ -32,9 +33,20 @@ impl Default for FilterChorus
     fn default() -> Self
     {
         Self {
-            h0: FirstOrderRCFilter::new::<HighPass>(RC {r: Self::R9, c: Self::C5}),
-            h1: FirstOrderRCFilter::new::<LowPass>(RC {r: Self::R10, c: Self::C6}),
-            h2: SecondOrderSallenKeyFilter::new::<LowPass>(RC2SallenKey {r1: Self::R10, c1: Self::C7, r2: Self::R10, c2: Self::C8}),
+            h0: FirstOrderRCFilter::new::<HighPass>(RC {
+                r: Self::R9,
+                c: Self::C5
+            }),
+            h1: FirstOrderRCFilter::new::<LowPass>(RC {
+                r: Self::R10,
+                c: Self::C6
+            }),
+            h2: SecondOrderSallenKeyFilter::new::<LowPass>(RC2SallenKey {
+                r1: Self::R10,
+                c1: Self::C7,
+                r2: Self::R10,
+                c2: Self::C8
+            }),
         }
     }
 }

@@ -35,7 +35,7 @@ impl LFO
         let omega_norm = self.omega/rate;
         let y = self.waveform(omega_norm);
         self.step(rate);
-        return y
+        y
     }
 
     fn waveform(&self, omega_norm: f64) -> f64
