@@ -64,8 +64,6 @@ impl BlueChorusPlugin
 
     fn process<F: Float>(&mut self, buffer: &mut AudioBuffer<F>)
     {
-        self.lfo.omega = self.param.frequency.get() as f64 * TAU;
-
         self.cache.depth.change(self.param.depth.get() as f64, CHANGE);
         self.cache.length.change(self.param.length.get() as f64, CHANGE);
 
@@ -76,6 +74,7 @@ impl BlueChorusPlugin
         let stages = self.stages();
         let length = self.cache.length;
 
+        self.lfo.omega = self.param.frequency.get() as f64 * TAU;
         self.lfo.duty_cycle = duty_cycle;
 
         let mut channels = buffer.zip().map(|(i, o)| i.iter().zip(o.iter_mut())).array_chunks::<CHANNEL_COUNT>().next().unwrap();
@@ -85,7 +84,7 @@ impl BlueChorusPlugin
             let lfo = self.lfo.next(self.cache.rate);
             let lfo = crate::triangle_to_sin(lfo).mul_add(sine, lfo * (1.0 - sine));
             let [lfo] = self.filter_lfo.filter(self.cache.rate, lfo * self.cache.depth);
-            [self.cache.tap] = self.filter_delay.filter(self.cache.rate, length*lfo.mul_add(0.5, 0.5));
+            [self.cache.tap] = self.filter_delay.filter(self.cache.rate, lfo.mul_add(0.5, 0.5));
 
             for (xy, channel) in channels.iter_mut()
                 .map(Iterator::next)
@@ -95,7 +94,7 @@ impl BlueChorusPlugin
                 {
                     Some((&x, y)) => {
                         let x = x.to_f64().unwrap();
-                        *y = F::from(channel.process(&self.cache, feedback, mix, stages, x)).unwrap()
+                        *y = F::from(channel.process(&self.cache, feedback, mix, (stages as f64*length).ceil() as usize, x)).unwrap()
                     },
                     _ => break 'lp
                 }
