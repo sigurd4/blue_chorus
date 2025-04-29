@@ -33,15 +33,15 @@ impl Default for FilterChorus
     fn default() -> Self
     {
         Self {
-            h0: FirstOrderRCFilter::new::<HighPass>(RC {
+            h0: FirstOrderRCFilter::new(RC {
                 r: Self::R9,
                 c: Self::C5
             }),
-            h1: FirstOrderRCFilter::new::<LowPass>(RC {
+            h1: FirstOrderRCFilter::new(RC {
                 r: Self::R10,
                 c: Self::C6
             }),
-            h2: SecondOrderSallenKeyFilter::new::<LowPass>(RC2SallenKey {
+            h2: SecondOrderSallenKeyFilter::new(RC2SallenKey {
                 r1: Self::R10,
                 c1: Self::C7,
                 r2: Self::R10,
