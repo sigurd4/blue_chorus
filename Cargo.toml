@@ -11,7 +11,7 @@ real_time_fir_iir_filters = {version = "1.3.3", features = ["first_order", "firs
 saturation = {version = "0.1.20", default-features = false}
 oscillation = "0.1.1"
 delay_line = "0.1.2"
-rand = "0.9.1"
+rand = "0.10.0"
 num = "0.4.3"
 moddef = "0.2.6"
 serde = {version = "1.0.219", features = ["derive"]}
